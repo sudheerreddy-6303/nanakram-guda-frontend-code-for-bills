@@ -9,6 +9,7 @@ const SUB_CATEGORY_MAP = {
   'Plywood':        ['16mm Plywood','9mm Plywood','12mm Plywood','18mm Plywood','19mm Plywood 8/4','19mm Plywood 7/4','16mm HDHMR','18mm HDHMR','12mm HDHMR','9mm HDHMR'],
   'Laminates':      ['0.8mm Laminate Linear','1mm Colour Laminates','1.25mm Acrylic Sheets'],
   'Transport':      ['Material','Man Power'],
+  'Hardware':       ['Tandam','Screws','Pull Out','Pantry Unit','Hinges','Handles','Wicker Basket','Knob','T-Patti','Bit','G- Sction Profile','Drawer Chanels','Other Hardware'],
   'Salary':         ['Sandeep','Ranjeet','Ankit','MK','Priyanaka','Chandu','Soni','Ramya','Raviteja','Sakshi','Sudheer','Nagamani'],
   'IT Bills':       ['Internet Bills','Computers','Printers'],
   'Petty Cash':     [],
@@ -152,8 +153,14 @@ export default function BillForm({ user }) {
     setOptions(prev => {
       const updated = { ...prev };
       if (fieldName === 'sub_category') {
-        // Add to custom sub-cats list and it'll show via getSubOptions()
-        updated._customSubCats = [...(prev._customSubCats || []), { cat: form.category, val: newValue }];
+        // Store with current category so getSubOptions() filters correctly
+        const entry = { cat: form.category, val: newValue };
+        const alreadyExists = (prev._customSubCats || []).some(
+          c => c && c.cat === form.category && c.val === newValue
+        );
+        updated._customSubCats = alreadyExists
+          ? prev._customSubCats
+          : [...(prev._customSubCats || []), entry];
       } else {
         updated[fieldName] = prev[fieldName]?.includes(newValue)
           ? prev[fieldName]
@@ -163,12 +170,14 @@ export default function BillForm({ user }) {
     });
   };
 
-  // Get sub-category options for the currently selected category
+  // Get sub-category options for the currently selected category ONLY
   const getSubOptions = () => {
+    if (!form.category) return [];
     const base = SUB_CATEGORY_MAP[form.category] || [];
+    // Only include custom sub-cats that belong to the selected category
     const custom = (options._customSubCats || [])
-      .filter(c => typeof c === 'string' ? true : c.cat === form.category)
-      .map(c => typeof c === 'string' ? c : c.val);
+      .filter(c => c && typeof c === 'object' && c.cat === form.category)
+      .map(c => c.val);
     return [...new Set([...base, ...custom])];
   };
 
@@ -187,8 +196,11 @@ export default function BillForm({ user }) {
             const combined = [...(DEFAULTS[k] || []), ...(custom[k] || [])];
             merged[k] = [...new Set(combined)];
           });
-          // Store user-added sub_categories keyed by category
-          merged._customSubCats = custom.sub_category || [];
+          // Store user-added sub_categories — only object entries with cat mapping
+          // Plain string entries from old DB have no category info, so skip them
+          merged._customSubCats = (custom.sub_category || []).filter(
+            c => c && typeof c === 'object' && c.cat
+          );
           return merged;
         });
       })
